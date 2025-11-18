@@ -1,14 +1,14 @@
 import { simpleGit } from 'simple-git';
-import { RegistryConfig } from '../interface.js';
+import { RegistryConfig } from './config.js';
 import fs from 'fs';
 
 const fsp = fs.promises;
 
 export async function cloneRegistry(
-  registryDist: string,
-  registryGitUrlHttps: string,
+  registryGit: string,
   localPath: string,
   configPath: string,
+  registryDist: string,
   forceOverwrite: boolean = false,
 ) {
   if (fs.existsSync(localPath)) {
@@ -23,16 +23,14 @@ export async function cloneRegistry(
 
   const git = simpleGit();
   try {
-    await git.clone(registryGitUrlHttps, localPath);
+    await git.clone(registryGit, localPath);
   } catch (error) {
-    throw new Error(
-      `Failed to clone repository from ${registryGitUrlHttps} to ${localPath}: ${error}`,
-    );
+    throw new Error(`Failed to clone repository from ${registryGit} to ${localPath}: ${error}`);
   }
 
   const config: RegistryConfig = {
     outputRegistryDist: registryDist,
-    registryGitUrlHttps: registryGitUrlHttps,
+    registryGit: registryGit,
     registryPath: localPath,
   };
 

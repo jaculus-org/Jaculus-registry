@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { red } from 'ansis';
+import { blue, green, red, yellow } from 'ansis';
 import path from 'path';
 import { spawn } from 'child_process';
 import os from 'os';
@@ -89,7 +89,7 @@ export async function copyBuiltPackagesToRegistryDist(
 
     // Copy package.json to version directory
     await copyFile('package.json', pathToRegistry, pathToOutputRegistryVer);
-    console.log(`Package ${packageName}@${version} successfully copied to registry dist.`);
+    console.log(green(`Package ${packageName}@${version} successfully copied to registry dist.`));
   } finally {
     // Clean up temp directory
     await fsp.rm(tempDir, { recursive: true, force: true });
@@ -107,7 +107,9 @@ async function buildPackage(
   const packageDirName = path.basename(pathToPackage);
   if (packageDirName !== pkg.name) {
     throw new Error(
-      `Package directory name "${packageDirName}" does not match package.json name "${pkg.name}"`,
+      yellow(
+        `Package directory name "${packageDirName}" does not match package.json name "${pkg.name}"`,
+      ),
     );
   }
 
@@ -118,7 +120,6 @@ async function buildPackage(
     return;
   }
 
-  // build package to dist/
   await buildPnpmPackage(pathToPackage);
   await copyBuiltPackagesToRegistryDist(
     pathToPackage,
@@ -145,12 +146,12 @@ export async function watchAndBuildPackagesInRegistry(
 
       const packageDir = filename.split(path.sep)[0];
       const packagePath = path.join(pathToRegistry, packageDir);
-      console.log(`Change detected in ${filename}. Rebuilding package in ${packagePath}`);
+      console.log(blue(`Change detected in ${filename}. Rebuilding package in ${packagePath}`));
       try {
         await buildPackage(packagePath, distRegistry, true);
-        console.log(`Rebuild of package in ${packagePath} completed successfully.`);
+        console.log(green(`Rebuild of package in ${packagePath} completed successfully.`));
       } catch (err) {
-        console.error(`Rebuild of package in ${packagePath} failed:`, err);
+        console.error(red(`Rebuild of package in ${packagePath} failed:\n`), err);
       }
     }
   });
@@ -160,6 +161,7 @@ export async function watchAndBuildPackagesInRegistry(
 export async function buildAllPackagesInRegistry(
   pathToRegistry: string,
   distRegistry: DistRegistry,
+  overrideExisting = false,
 ) {
   const skipDirectories = ['dist', '.git'];
   const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
@@ -167,7 +169,7 @@ export async function buildAllPackagesInRegistry(
     if (dirent.isDirectory() && !skipDirectories.includes(dirent.name)) {
       const packagePath = path.join(pathToRegistry, dirent.name);
       console.log(`Building package in ${packagePath}`);
-      await buildPackage(packagePath, distRegistry);
+      await buildPackage(packagePath, distRegistry, overrideExisting);
     }
   }
 }

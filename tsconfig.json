@@ -6,14 +6,10 @@
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
     "resolveJsonModule": true,
-    "lib": ["ES2024"],
     "declaration": true,
     "sourceMap": true
   },
-  "include": ["eslint.config.ts", "src/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

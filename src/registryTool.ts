@@ -1,6 +1,5 @@
 import { simpleGit } from 'simple-git';
 import fs from 'fs';
-import { RegistryCache, RegistryConfig } from './interface.js';
 import { serveFolder } from './utils/serve.js';
 import {
   buildAllPackagesInRegistry,
@@ -9,6 +8,8 @@ import {
 import { DistRegistry } from './localRegistry.js';
 import { extractTarGz } from './utils/tarGz.js';
 import path from 'path';
+import { loadCache, loadConfig, RegistryCache, RegistryConfig, saveCache } from './utils/config.js';
+import { blue, red } from 'ansis';
 
 const fsp = fs.promises;
 
@@ -21,17 +22,17 @@ export class RegistryTool {
     configPath: string,
     private cachePath: string,
   ) {
-    this.config = this.loadConfig(configPath);
+    this.config = loadConfig(configPath);
     if (!fs.existsSync(this.config.registryPath)) {
       throw new Error(
-        `Registry path ${this.config.registryPath} does not exist. Please clone the registry repository first.`,
+        red(`Registry path ${this.config.registryPath} does not exist. Please clone the registry repository first.`),
       );
     }
     console.log(
-      `Using registry: URL: ${this.config.registryGitUrlHttps} Path: ${this.config.registryPath}`,
+      `Using registry: URL: ${this.config.registryGit} Path: ${this.config.registryPath}`,
     );
     this.git = simpleGit(this.config.registryPath);
-    this.cache = this.loadCache(cachePath);
+    this.cache = loadCache(cachePath);
 
     if (!fs.existsSync(this.config.outputRegistryDist)) {
       fs.mkdirSync(this.config.outputRegistryDist, { recursive: true });
@@ -43,28 +44,10 @@ export class RegistryTool {
     return this.distRegistry.initialize();
   }
 
-  loadConfig(configPath: string): RegistryConfig {
-    try {
-      const cacheData = fs.readFileSync(configPath, 'utf-8');
-      return JSON.parse(cacheData) as RegistryConfig;
-    } catch {
-      throw new Error(`Failed to load config from ${configPath}`);
-    }
-  }
-
-  loadCache(cachePath: string): RegistryCache {
-    try {
-      const cacheData = fs.readFileSync(cachePath, 'utf-8');
-      return JSON.parse(cacheData) as RegistryCache;
-    } catch {
-      return { lastProcessedCommit: '', lastCacheUpdate: '' };
-    }
-  }
-
   async updateCache(latestCommit: string) {
     this.cache.lastProcessedCommit = latestCommit;
     this.cache.lastCacheUpdate = new Date().toISOString();
-    await fsp.writeFile(this.cachePath, JSON.stringify(this.cache, null, 2), 'utf-8');
+    await saveCache(this.cachePath, this.cache);
   }
 
   getCache(): RegistryCache {
@@ -96,13 +79,13 @@ export class RegistryTool {
     await this.git.checkout('HEAD');
   }
 
-  async serveCurrentRegistry() {
-    await serveFolder(this.config.registryPath, 8080);
+  async serveCurrentRegistry(port: number) {
+    await serveFolder(this.config.outputRegistryDist, port);
   }
 
-  async processCurrentRegistry() {
+  async buildCurrentRegistry(override = false) {
     await this.distRegistry.loadRegistryData();
-    await buildAllPackagesInRegistry(this.config.registryPath, this.distRegistry);
+    await buildAllPackagesInRegistry(this.config.registryPath, this.distRegistry, override);
   }
 
   async watchBuildCurrentRegistry() {
@@ -117,7 +100,7 @@ export class RegistryTool {
     }
     const commitsToProcess = await this.getListOfCommitsUntil(this.cache.lastProcessedCommit);
     if (commitsToProcess.length === 0) {
-      console.log('No new commits to process.');
+      console.log(blue('No new commits to process.'));
       process.exit(0);
     }
 
@@ -136,7 +119,7 @@ export class RegistryTool {
         try {
           await buildAllPackagesInRegistry(this.config.registryPath, this.distRegistry);
         } catch (err) {
-          console.error(`Error processing registry at this commit: ${commitHash} Error:\n`, err);
+          console.error(red(`Error processing registry at this commit: ${commitHash} Error:\n`, err));
           throw err;
         }
       });
@@ -154,7 +137,7 @@ export class RegistryTool {
     );
     if (!fs.existsSync(packageTarGzPath)) {
       throw new Error(
-        `Package tar.gz for ${packageName}@${version} does not exist at ${packageTarGzPath}`,
+        red(`Package tar.gz for ${packageName}@${version} does not exist at ${packageTarGzPath}`),
       );
     }
     await fsp.mkdir(destinationPath, { recursive: true });

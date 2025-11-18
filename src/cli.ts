@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { RegistryTool } from './registry.js';
+import { RegistryTool } from './registryTool.js';
 import { cloneRegistry } from './utils/clone.js';
 
 const configPath = './registry-config.json';
@@ -11,19 +11,28 @@ program.name('jaculus-registry').description('Registry management CLI');
 program
   .command('init')
   .description('Clone the registry repository and initialize the dist')
-  .option('-o, --output <output>', 'Output directory for the registry dist', './libraries-dist')
   .option(
-    '-u, --url <url>',
+    '-g, --git-url <url>',
     'HTTPS URL of the registry git repository',
     'https://github.com/jaculus-org/Jaculus-libraries.git',
+  )
+  .option(
+    '-p, --packages <path>',
+    'Local path to clone the registry repository',
+    './jaculus-packages',
+  )
+  .option(
+    '-d, --packages-dist <path>',
+    'Local path for the registry dist',
+    './jaculus-packages-dist',
   )
   .option('-f, --force', 'Force overwrite if the local path exists')
   .action(async (options) => {
     await cloneRegistry(
-      options.output,
-      options.url,
+      options.gitUrl,
+      options.packages,
       configPath,
-      './registry-config.json',
+      options.packagesDist,
       options.force,
     );
     const rt = new RegistryTool(configPath, cachePath);
@@ -32,7 +41,7 @@ program
 
 program
   .command('info')
-  .description('Print registry cache info')
+  .description('Print registry and cache information')
   .action(async () => {
     const rt = new RegistryTool(configPath, cachePath);
     console.log(`Registry Cache: ${JSON.stringify(rt.getCache(), null, 2)}`);
@@ -50,21 +59,23 @@ program
 program
   .command('serve')
   .description('Serve the current registry over HTTP')
-  .action(async () => {
+  .option('-p, --port <number>', 'Port to serve the registry on', '3232')
+  .action(async (options) => {
     const rt = new RegistryTool(configPath, cachePath);
-    await rt.serveCurrentRegistry();
+    await rt.serveCurrentRegistry(options.port);
   });
 
 program
   .command('build')
   .description('Build all packages in the current registry')
-  .action(async () => {
+  .option('-o, --override', 'Override existing package versions in the dist')
+  .action(async (options) => {
     const rt = new RegistryTool(configPath, cachePath);
-    await rt.processCurrentRegistry();
+    await rt.buildCurrentRegistry(options.override);
   });
 
 program
-  .command('watch-build')
+  .command('build-watch')
   .description('Watch and build packages on changes in the current registry')
   .action(async () => {
     const rt = new RegistryTool(configPath, cachePath);
