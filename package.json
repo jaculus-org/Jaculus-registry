@@ -1,0 +1,28 @@
+{
+  "name": "jaculus-registry",
+  "version": "1.0.0",
+  "description": "Jaculus registry management tool",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "start": "node dist/main.js",
+    "cli:dev": "ts-node src/cli.ts",
+    "cli": "node dist/cli.js"
+  },
+  "keywords": [],
+  "author": "Jakub Andrysek",
+  "github": "https://github.com/JakubAndrysek/",
+  "license": "MIT",
+  "packageManager": "pnpm@10.17.1",
+  "dependencies": {
+    "commander": "^14.0.2",
+    "simple-git": "^3.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.8.0"
+  }
+}
