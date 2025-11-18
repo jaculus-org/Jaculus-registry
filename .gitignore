@@ -141,3 +141,7 @@ vite.config.ts.timestamp-*
 .vite/
 
 registry-cache.json
+registry-config.json
+
+jaculus-packages/
+jaculus-packages-dist/
