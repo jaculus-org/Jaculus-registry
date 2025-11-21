@@ -31,3 +31,19 @@ export async function copyFile(
   }
   await fsp.copyFile(srcPath, destPath);
 }
+
+export async function writeFile(pathToFile: string, data: string) {
+  const dir = path.dirname(pathToFile);
+  await fsp.mkdir(dir, { recursive: true });
+  await fsp.writeFile(pathToFile, data, 'utf-8').catch((err) => {
+    throw new Error(`Failed to write file at ${pathToFile}: ${err}`);
+  });
+}
+
+export async function writeJSONFile(pathToFile: string, data: object) {
+  const dir = path.dirname(pathToFile);
+  await fsp.mkdir(dir, { recursive: true });
+  await fsp.writeFile(pathToFile, JSON.stringify(data, null, 2), 'utf-8').catch((err) => {
+    throw new Error(`Failed to write JSON file at ${pathToFile}: ${err}`);
+  });
+}

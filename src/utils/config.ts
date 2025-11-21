@@ -7,8 +7,9 @@ export interface RegistryCache {
 
 export interface RegistryConfig {
   registryGit: string;
-  registryPath: string;
-  outputRegistryDist: string;
+  registrySourcePath: string;
+  registryDestPath: string;
+  registryDestBranch: string;
 }
 
 export function loadConfig(configPath: string): RegistryConfig {

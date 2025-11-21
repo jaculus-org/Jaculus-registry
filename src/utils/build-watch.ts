@@ -33,13 +33,18 @@ import { DistRegistry } from '../localRegistry.js';
 /**
  * Build all packages in the registry located at pathToRegistry
  */
-async function buildPnpmPackage(pathToPackage: string) {
+async function runCommand(pathToPackage: string, command: string, args: string[]): Promise<void> {
+  console.log(blue(`Running command: ${command} ${args.join(' ')} in ${pathToPackage}`));
   return new Promise<void>((resolve, reject) => {
-    const child = spawn('pnpm', ['run', 'build'], {
-      cwd: pathToPackage,
-      stdio: 'inherit',
-      shell: true,
-    });
+    const child = spawn(
+      command,
+      args,
+      {
+        cwd: pathToPackage,
+        stdio: 'inherit',
+        shell: true,
+      }
+    );
 
     child.on('exit', (code) => {
       if (code === 0) {
@@ -53,6 +58,11 @@ async function buildPnpmPackage(pathToPackage: string) {
       reject(err);
     });
   });
+}
+
+async function buildPnpmPackage(pathToPackage: string) {
+  await runCommand(pathToPackage, 'pnpm', ['install']);
+  await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
 }
 
 export async function copyBuiltPackagesToRegistryDist(
@@ -136,23 +146,40 @@ export async function watchAndBuildPackagesInRegistry(
   pathToRegistry: string,
   distRegistry: DistRegistry,
 ) {
-  const exclude = ['dist', '.git'];
+  const exclude = ['dist', '.git', 'node_modules'];
 
   fs.watch(pathToRegistry, { recursive: true }, async (eventType, filename) => {
     // rebuild on any change, rebuild only corresponding package
-    if (filename) {
-      const parts = filename.split(path.sep);
-      if (parts.some((part) => exclude.includes(part))) return;
+    if (!filename) return;
 
-      const packageDir = filename.split(path.sep)[0];
-      const packagePath = path.join(pathToRegistry, packageDir);
-      console.log(blue(`Change detected in ${filename}. Rebuilding package in ${packagePath}`));
-      try {
-        await buildPackage(packagePath, distRegistry, true);
-        console.log(green(`Rebuild of package in ${packagePath} completed successfully.`));
-      } catch (err) {
-        console.error(red(`Rebuild of package in ${packagePath} failed:\n`), err);
+    // normalize and split relative path reported by watcher
+    const parts = filename.split(path.sep).filter(Boolean);
+    if (parts.some((part) => exclude.includes(part))) return;
+
+    // If the change is at the registry root (e.g. a top-level package.json), ignore it
+    if (parts.length === 0) return;
+
+    // The first segment should be the package directory name. Verify it is a directory.
+    const packageDir = parts[0];
+    const packagePath = path.join(pathToRegistry, packageDir);
+
+    try {
+      const stat = await fsp.stat(packagePath);
+      if (!stat.isDirectory()) {
+        // Not a package directory -- ignore
+        return;
       }
+    } catch {
+      // Path does not exist or cannot be accessed; ignore noisy watcher events
+      return;
+    }
+
+    console.log(blue(`Change detected in ${filename}. Rebuilding package in ${packagePath}`));
+    try {
+      await buildPackage(packagePath, distRegistry, true);
+      console.log(green(`Rebuild of package in ${packagePath} completed successfully.`));
+    } catch (err) {
+      console.error(red(`Rebuild of package in ${packagePath} failed:\n`), err);
     }
   });
   console.log(`Watching for changes in ${pathToRegistry}...`);
@@ -163,7 +190,7 @@ export async function buildAllPackagesInRegistry(
   distRegistry: DistRegistry,
   overrideExisting = false,
 ) {
-  const skipDirectories = ['dist', '.git'];
+  const skipDirectories = ['dist', '.git', 'node_modules'];
   const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
   for await (const dirent of packages) {
     if (dirent.isDirectory() && !skipDirectories.includes(dirent.name)) {

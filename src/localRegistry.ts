@@ -5,7 +5,7 @@ import {
   RegistryVersions,
 } from '@jaculus/project/registry';
 import path from 'path';
-import fs, { promises as fsp } from 'fs';
+import { promises as fsp } from 'fs';
 
 import semver from 'semver';
 
@@ -18,19 +18,6 @@ export class DistRegistry {
 
   getOutputPath(): string {
     return this.outputRegistryDist;
-  }
-
-  /**
-   * Initialize a new empty registry dist
-   */
-  async initialize() {
-    if (fs.existsSync(path.join(this.outputRegistryDist, 'list.json'))) {
-      throw new Error(`Registry dist at ${this.outputRegistryDist} is already initialized.`);
-    }
-    await fsp.mkdir(this.outputRegistryDist, { recursive: true });
-    this.list = [];
-    this.versionsMap = new Map();
-    await this.saveUpdatedList();
   }
 
   async loadRegistryData() {
@@ -108,15 +95,5 @@ export class DistRegistry {
       this.versionsMap.set(packageName, versions);
       await this.saveUpdatedVersions(packageName);
     }
-  }
-
-  isNewerVersion(packageName: string, versionStr: string): boolean {
-    const versions = this.versionsMap.get(packageName);
-    if (!versions || versions.length === 0) {
-      return true;
-    }
-
-    const latestVersion = versions[versions.length - 1];
-    return semver.gt(versionStr, latestVersion.version);
   }
 }
