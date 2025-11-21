@@ -10,6 +10,8 @@ import { copyFile } from './fs.js';
 import { loadPackageJson } from '@jaculus/project';
 import { DistRegistry } from '../localRegistry.js';
 
+const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_modules, dist, and dotfiles
+
 /**
  *
  * Registry dist structure:
@@ -146,15 +148,13 @@ export async function watchAndBuildPackagesInRegistry(
   pathToRegistry: string,
   distRegistry: DistRegistry,
 ) {
-  const exclude = ['dist', '.git', 'node_modules'];
-
   fs.watch(pathToRegistry, { recursive: true }, async (eventType, filename) => {
     // rebuild on any change, rebuild only corresponding package
     if (!filename) return;
 
     // normalize and split relative path reported by watcher
     const parts = filename.split(path.sep).filter(Boolean);
-    if (parts.some((part) => exclude.includes(part))) return;
+    if (parts.some((part) => folderIgnoreListGlobe.some(ignore => typeof ignore === 'string' ? ignore === part : ignore.test(part)))) return;
 
     // If the change is at the registry root (e.g. a top-level package.json), ignore it
     if (parts.length === 0) return;
@@ -190,10 +190,9 @@ export async function buildAllPackagesInRegistry(
   distRegistry: DistRegistry,
   overrideExisting = false,
 ) {
-  const skipDirectories = ['dist', '.git', 'node_modules'];
   const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
   for await (const dirent of packages) {
-    if (dirent.isDirectory() && !skipDirectories.includes(dirent.name)) {
+    if (dirent.isDirectory() && !folderIgnoreListGlobe.some(ignore => typeof ignore === 'string' ? ignore === dirent.name : ignore.test(dirent.name))) {
       const packagePath = path.join(pathToRegistry, dirent.name);
       console.log(`Building package in ${packagePath}`);
       await buildPackage(packagePath, distRegistry, overrideExisting);
