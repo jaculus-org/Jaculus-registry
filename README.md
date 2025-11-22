@@ -55,3 +55,28 @@ Commands:
   extract <packageName> <version> <destinationPath>  Extract a specific package version to the given destination path
   help [command]                                     display help for command
 ```
+
+## Running from CI
+
+Jaculus-registry is mainly designed to be run from CI pipelines to automate updating and building the registry.
+You can set up a CI job that runs the `generate` command whenever there are new commits in the registry repository.
+
+### Setup CI Job
+
+Generated registry is stored in configured branch (e.g., `registry`) of the same repository.
+
+Steps to set up the CI job:
+1. The initial setup of the registry is done manually.
+2. Clone the Library repository.
+3. Run `pnpm install` to install dependencies (you will get all lint and test tools as well).
+4. Run `jaculus-registry init <registryDestPath> --git-url <repository-url> --branch-dist <branch-name>` to create separate folder with the Library registry - Registry branch.
+5. The init command automatically initializes the dist registry and prepares the first commit.
+6. If everything is fine, push the `registry` branch to the remote repository.
+
+#### Set up a CI workflow (e.g., GitHub Actions)
+
+You have prepared the `registry` branch with the initial registry state.
+Create a workflow that triggers on pushes to the main branch and runs the build and generate commands.
+
+The latest version of CI workflow can be found in:
+https://github.com/Jaculus-org/Jaculus-libraries/tree/master/.github/workflows

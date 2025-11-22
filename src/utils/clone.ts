@@ -2,7 +2,7 @@ import { simpleGit } from 'simple-git';
 import fs from 'fs';
 import path from 'path';
 import { writeJSONFile } from './fs.js';
-import { green } from 'ansis';
+import { green, yellow } from 'ansis';
 
 const fsp = fs.promises;
 
@@ -55,15 +55,6 @@ async function cloneRepo(repoGit: string, localPath: string) {
   }
 }
 
-export async function cloneRegistrySource(
-  registryGit: string,
-  registrySourcePath: string,
-  forceOverwrite: boolean = false,
-) {
-  await processIfExists(registrySourcePath, forceOverwrite);
-  await cloneRepo(registryGit, registrySourcePath);
-}
-
 export async function cloneRegistryDist(
   registryDistGit: string,
   storeBranch: string,
@@ -89,7 +80,6 @@ export async function cloneRegistryDist(
 }
 
 export async function initRepos(
-  registrySourcePath: string,
   registryDestPath: string,
   registryGit: string,
   registryDestBranch: string,
@@ -97,8 +87,6 @@ export async function initRepos(
   forceOverwrite: boolean = false,
 ) {
   console.log(green(`Initializing registry repositories...`));
-
-  await cloneRegistrySource(registryGit, registrySourcePath, forceOverwrite);
 
   await cloneRegistryDist(
     registryGit,
@@ -109,4 +97,15 @@ export async function initRepos(
   );
 
   console.log(green(`Successfully initialized registry repositories.`));
+
+  console.log(yellow(`Next steps:`));
+  console.log(yellow(`1. Verify the prepared registry dist at: ${registryDestPath}`));
+  console.log(yellow(`   you can move to the directory and inspect the contents.`));
+  console.log(yellow(`   - cd ${registryDestPath}`));
+  console.log(yellow(`   - tree -a -I '.git'    # list all files excluding .git`));
+  console.log(yellow(`   - git log              # check commit history`));
+
+  console.log(yellow(`2. If everything looks good, push the dist branch to the remote repository:`));
+  console.log(yellow(`   - git push origin ${registryDestBranch}`));
+  console.log(yellow(`3. Now you can setup CI to run 'generate' command on new commits.`));
 }
