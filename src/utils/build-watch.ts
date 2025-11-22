@@ -127,7 +127,7 @@ async function buildPackage(
 
   if (!overrideExisting && distRegistry.existsVersion(pkg.name, pkg.version)) {
     console.error(
-      red(`Package ${pkg.name}@${pkg.version} already exists in registry. Skipping build.`),
+      yellow(`Package ${pkg.name}@${pkg.version} already exists in registry. Skipping build.`),
     );
     return;
   }
