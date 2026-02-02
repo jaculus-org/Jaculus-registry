@@ -32,8 +32,12 @@ program
 program
   .command('info')
   .description('Print registry and cache information')
-  .argument('[registrySourcePath]', 'Path to the registry source directory',  "./.jaculus-libs-source")
-  .argument('[registryDestPath]', 'Path to the registry dist directory', "./.jaculus-libs-dist")
+  .argument(
+    '[registrySourcePath]',
+    'Path to the registry source directory',
+    './.jaculus-libs-source',
+  )
+  .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
     console.log(`Registry Cache: ${JSON.stringify(rt.getCache(), null, 2)}`);
@@ -43,8 +47,12 @@ program
   .command('generate')
   .description('Run generateRegistry for new commits (respects cache)')
   .option('-f, --force', 'Force regenerate all commits, ignoring cache')
-  .argument('[registrySourcePath]', 'Path to the registry source directory',  "./.jaculus-libs-source")
-  .argument('[registryDestPath]', 'Path to the registry dist directory', "./.jaculus-libs-dist")
+  .argument(
+    '[registrySourcePath]',
+    'Path to the registry source directory',
+    './.jaculus-libs-source',
+  )
+  .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath, options) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
     await rt.generateRegistry(options.force);
@@ -53,9 +61,13 @@ program
 program
   .command('serve')
   .description('Serve the current registry over HTTP')
-  .option('-p, --port <number>', 'Port to serve the registry on', '3232')
-  .argument('[registrySourcePath]', 'Path to the registry source directory',  "./.jaculus-libs-source")
-  .argument('[registryDestPath]', 'Path to the registry dist directory', "./.jaculus-libs-dist")
+  .option('-p, --port <number>', 'Port to serve the registry on', '3737')
+  .argument(
+    '[registrySourcePath]',
+    'Path to the registry source directory',
+    './.jaculus-libs-source',
+  )
+  .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath, options) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
     await rt.serveCurrentRegistry(options.port);
@@ -65,8 +77,12 @@ program
   .command('build')
   .description('Build all packages in the current registry')
   .option('-f, --force', 'Force rebuild all packages, ignoring cache')
-  .argument('[registrySourcePath]', 'Path to the registry source directory',  "./.jaculus-libs-source")
-  .argument('[registryDestPath]', 'Path to the registry dist directory', "./.jaculus-libs-dist")
+  .argument(
+    '[registrySourcePath]',
+    'Path to the registry source directory',
+    './.jaculus-libs-source',
+  )
+  .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath, options) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
     await rt.buildCurrentRegistry(options.force);
@@ -75,8 +91,12 @@ program
 program
   .command('build-watch')
   .description('Watch and build packages on changes in the current registry')
-  .argument('[registrySourcePath]', 'Path to the registry source directory',  "./.jaculus-libs-source")
-  .argument('[registryDestPath]', 'Path to the registry dist directory', "./.jaculus-libs-dist")
+  .argument(
+    '[registrySourcePath]',
+    'Path to the registry source directory',
+    './.jaculus-libs-source',
+  )
+  .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
     await rt.watchBuildCurrentRegistry();
@@ -90,12 +110,7 @@ program
   .argument('<extractPath>', 'Path to extract the package to')
   .description('Extract a specific package version to the given destination path')
   .action(
-    async (
-      packageName: string,
-      version: string,
-      extractPath: string,
-      registryDestPath: string,
-    ) => {
+    async (packageName: string, version: string, extractPath: string, registryDestPath: string) => {
       await extractPackageAtVersion(registryDestPath, packageName, version, extractPath);
       console.log(`Extracted ${packageName}@${version} to ${extractPath}`);
     },

@@ -105,7 +105,9 @@ export async function initRepos(
   console.log(yellow(`   - tree -a -I '.git'    # list all files excluding .git`));
   console.log(yellow(`   - git log              # check commit history`));
 
-  console.log(yellow(`2. If everything looks good, push the dist branch to the remote repository:`));
+  console.log(
+    yellow(`2. If everything looks good, push the dist branch to the remote repository:`),
+  );
   console.log(yellow(`   - git push origin ${registryDestBranch}`));
   console.log(yellow(`3. Now you can setup CI to run 'generate' command on new commits.`));
 }

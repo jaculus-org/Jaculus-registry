@@ -1,13 +1,12 @@
-import fs from 'fs';
+import fs, { promises as fsp } from 'fs';
 import { blue, green, red, yellow } from 'ansis';
 import path from 'path';
 import { spawn } from 'child_process';
 import os from 'os';
 import * as tar from 'tar';
-import { promises as fsp } from 'fs';
-import { copyDirectory } from './fs.js';
+import { copyDirectory, writeJSONFile } from './fs.js';
 import { copyFile } from './fs.js';
-import { loadPackageJson } from '@jaculus/project';
+import { JaculusConfig, loadPackageJson } from '@jaculus/project';
 import { DistRegistry } from '../localRegistry.js';
 
 const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_modules, dist, and dotfiles
@@ -38,21 +37,17 @@ const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_
 async function runCommand(pathToPackage: string, command: string, args: string[]): Promise<void> {
   console.log(blue(`Running command: ${command} ${args.join(' ')} in ${pathToPackage}`));
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      command,
-      args,
-      {
-        cwd: pathToPackage,
-        stdio: 'inherit',
-        shell: true,
-      }
-    );
+    const child = spawn(command, args, {
+      cwd: pathToPackage,
+      stdio: 'inherit',
+      shell: true,
+    });
 
     child.on('exit', (code) => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Build failed with exit code ${code}`));
+        reject(new Error(`Build failed with exit code ${code} under ${pathToPackage}`));
       }
     });
 
@@ -62,9 +57,40 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
   });
 }
 
-async function buildPnpmPackage(pathToPackage: string) {
+async function buildPnpmPackage(pathToPackage: string, template: JaculusConfig['template']) {
   await runCommand(pathToPackage, 'pnpm', ['install']);
-  await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
+  switch (template) {
+    case 'code':
+      await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
+      break;
+    case 'jacly': {
+      const srcPath = path.join(pathToPackage, 'src');
+      const distPath = path.join(pathToPackage, 'dist');
+
+      if (fs.existsSync(srcPath)) {
+        await copyDirectory(srcPath, distPath, true);
+      } else {
+        console.log(yellow(`No src directory found in ${pathToPackage}, skipping copy to dist.`));
+      }
+      break;
+    }
+  }
+}
+
+export async function resolvePackageJsonWorkspace(fileName: string, sourceDir: string) {
+  const packageJsonPath = path.join(sourceDir, fileName);
+  const packageJson = await loadPackageJson(fs, packageJsonPath);
+
+  // Resolve workspace: versions in dependencies
+  if (packageJson.dependencies) {
+    for (const [dep, version] of Object.entries(packageJson.dependencies)) {
+      if (version.startsWith('workspace:')) {
+        packageJson.dependencies[dep] = version.replace('workspace:', '');
+      }
+    }
+  }
+
+  await writeJSONFile(packageJsonPath, packageJson);
 }
 
 export async function copyBuiltPackagesToRegistryDist(
@@ -81,9 +107,10 @@ export async function copyBuiltPackagesToRegistryDist(
     await fsp.mkdir(packageDir, { recursive: true });
 
     // Copy required directories and files
-    await copyDirectory(path.join(pathToRegistry, 'dist'), path.join(packageDir, 'dist'));
-    await copyDirectory(path.join(pathToRegistry, 'blocks'), path.join(packageDir, 'blocks'));
+    await copyDirectory(path.join(pathToRegistry, 'dist'), path.join(packageDir, 'dist'), true);
+    await copyDirectory(path.join(pathToRegistry, 'blocks'), path.join(packageDir, 'blocks'), true);
     await copyFile('package.json', pathToRegistry, packageDir);
+    await resolvePackageJsonWorkspace('package.json', packageDir);
     await copyFile('README.md', pathToRegistry, packageDir, true);
 
     // Create tar.gz archive
@@ -99,8 +126,10 @@ export async function copyBuiltPackagesToRegistryDist(
       ['package'],
     );
 
+    await copyDirectory(packageDir, path.join(pathToOutputRegistryVer, 'package'), true);
+
     // Copy package.json to version directory
-    await copyFile('package.json', pathToRegistry, pathToOutputRegistryVer);
+    await copyFile('package.json', packageDir, pathToOutputRegistryVer);
     console.log(green(`Package ${packageName}@${version} successfully copied to registry dist.`));
   } finally {
     // Clean up temp directory
@@ -116,11 +145,17 @@ async function buildPackage(
   const pkg = await loadPackageJson(fs, path.join(pathToPackage, 'package.json'));
 
   // package directory name must match package.json name
+  // For scoped packages (e.g., @types/jaculus), construct the expected name from path
   const packageDirName = path.basename(pathToPackage);
-  if (packageDirName !== pkg.name) {
+  const parentDirName = path.basename(path.dirname(pathToPackage));
+  const expectedPackageName = parentDirName.startsWith('@')
+    ? `${parentDirName}/${packageDirName}`
+    : packageDirName;
+
+  if (expectedPackageName !== pkg.name) {
     throw new Error(
       yellow(
-        `Package directory name "${packageDirName}" does not match package.json name "${pkg.name}"`,
+        `Package directory name "${expectedPackageName}" does not match package.json name "${pkg.name}"`,
       ),
     );
   }
@@ -132,7 +167,7 @@ async function buildPackage(
     return;
   }
 
-  await buildPnpmPackage(pathToPackage);
+  await buildPnpmPackage(pathToPackage, pkg.jaculus?.template);
   await copyBuiltPackagesToRegistryDist(
     pathToPackage,
     distRegistry.getOutputPath(),
@@ -154,14 +189,29 @@ export async function watchAndBuildPackagesInRegistry(
 
     // normalize and split relative path reported by watcher
     const parts = filename.split(path.sep).filter(Boolean);
-    if (parts.some((part) => folderIgnoreListGlobe.some(ignore => typeof ignore === 'string' ? ignore === part : ignore.test(part)))) return;
+    if (
+      parts.some((part) =>
+        folderIgnoreListGlobe.some((ignore) =>
+          typeof ignore === 'string' ? ignore === part : ignore.test(part),
+        ),
+      )
+    )
+      return;
 
     // If the change is at the registry root (e.g. a top-level package.json), ignore it
     if (parts.length === 0) return;
 
-    // The first segment should be the package directory name. Verify it is a directory.
-    const packageDir = parts[0];
-    const packagePath = path.join(pathToRegistry, packageDir);
+    // Handle scoped packages (e.g., @types/jaculus)
+    // For scoped packages, the actual package is at parts[0]/parts[1]
+    let packagePath: string;
+    if (parts[0].startsWith('@')) {
+      // Scoped package - need at least 2 parts (e.g., @types/jaculus)
+      if (parts.length < 2) return;
+      packagePath = path.join(pathToRegistry, parts[0], parts[1]);
+    } else {
+      // Regular package
+      packagePath = path.join(pathToRegistry, parts[0]);
+    }
 
     try {
       const stat = await fsp.stat(packagePath);
@@ -192,10 +242,34 @@ export async function buildAllPackagesInRegistry(
 ) {
   const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
   for await (const dirent of packages) {
-    if (dirent.isDirectory() && !folderIgnoreListGlobe.some(ignore => typeof ignore === 'string' ? ignore === dirent.name : ignore.test(dirent.name))) {
+    if (
+      dirent.isDirectory() &&
+      !folderIgnoreListGlobe.some((ignore) =>
+        typeof ignore === 'string' ? ignore === dirent.name : ignore.test(dirent.name),
+      )
+    ) {
       const packagePath = path.join(pathToRegistry, dirent.name);
-      console.log(`Building package in ${packagePath}`);
-      await buildPackage(packagePath, distRegistry, overrideExisting);
+
+      // Handle scoped/namespaced packages (e.g., @types/jaculus)
+      if (dirent.name.startsWith('@')) {
+        // This is a namespace folder, iterate through its subdirectories
+        const scopedPackages = await fsp.readdir(packagePath, { withFileTypes: true });
+        for await (const scopedDirent of scopedPackages) {
+          if (
+            scopedDirent.isDirectory() &&
+            !folderIgnoreListGlobe.some((ignore) =>
+              typeof ignore === 'string' ? ignore === scopedDirent.name : ignore.test(scopedDirent.name),
+            )
+          ) {
+            const scopedPackagePath = path.join(packagePath, scopedDirent.name);
+            console.log(`Building scoped package in ${scopedPackagePath}`);
+            await buildPackage(scopedPackagePath, distRegistry, overrideExisting);
+          }
+        }
+      } else {
+        console.log(`Building package in ${packagePath}`);
+        await buildPackage(packagePath, distRegistry, overrideExisting);
+      }
     }
   }
 }

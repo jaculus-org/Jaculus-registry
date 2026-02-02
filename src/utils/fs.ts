@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { promises as fsp } from 'fs';
 
-export async function copyDirectory(src: string, dest: string) {
+export async function copyDirectory(src: string, dest: string, skipIfNotExists = false) {
+  if (skipIfNotExists && !fs.existsSync(src)) return;
   await fsp.mkdir(dest, { recursive: true });
   const entries = await fsp.readdir(src, { withFileTypes: true });
   for (const entry of entries) {

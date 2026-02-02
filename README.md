@@ -66,6 +66,7 @@ You can set up a CI job that runs the `generate` command whenever there are new 
 Generated registry is stored in configured branch (e.g., `registry`) of the same repository.
 
 Steps to set up the CI job:
+
 1. The initial setup of the registry is done manually.
 2. Clone the Library repository.
 3. Run `pnpm install` to install dependencies (you will get all lint and test tools as well).
