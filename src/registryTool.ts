@@ -4,7 +4,7 @@ import { serveFolder } from './utils/serve.js';
 import {
   buildAllPackagesInRegistry,
   watchAndBuildPackagesInRegistry,
-} from './utils/build-watch.js';
+} from './generate/build-watch.js';
 import { DistRegistry } from './localRegistry.js';
 import path from 'path';
 import { loadCache, RegistryCache, saveCache } from './utils/config.js';

@@ -106,7 +106,7 @@ export async function serveFolder(fsPath: string, port: number) {
 
       const base = `http://${req.headers.host ?? 'localhost'}`;
       const url = new URL(req.url, base);
-      let pathname = decodeURIComponent(url.pathname);
+      const pathname = decodeURIComponent(url.pathname);
 
       if (pathname.includes('\0')) {
         res.statusCode = 400;
@@ -144,8 +144,9 @@ export async function serveFolder(fsPath: string, port: number) {
         } else {
           streamFile(target, res);
         }
-      } catch (err: any) {
-        if (err.code === 'ENOENT') {
+      } catch (err) {
+        const errnoErr = err as NodeJS.ErrnoException;
+        if (errnoErr.code === 'ENOENT') {
           res.statusCode = 404;
           res.end('Not found');
         } else {

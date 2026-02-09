@@ -4,18 +4,7 @@ import { promises as fsp } from 'fs';
 
 export async function copyDirectory(src: string, dest: string, skipIfNotExists = false) {
   if (skipIfNotExists && !fs.existsSync(src)) return;
-  await fsp.mkdir(dest, { recursive: true });
-  const entries = await fsp.readdir(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      await fsp.mkdir(destPath, { recursive: true });
-      await copyDirectory(srcPath, destPath);
-    } else {
-      await fsp.copyFile(srcPath, destPath);
-    }
-  }
+  fs.cpSync(src, dest, { recursive: true });
 }
 
 export async function copyFile(

@@ -8,6 +8,7 @@ import path from 'path';
 import { promises as fsp } from 'fs';
 
 import semver from 'semver';
+import { JaculusConfig } from '@jaculus/project';
 
 export class DistRegistry {
   // Versions are stored sorted by semver: index 0 = oldest, last index = latest
@@ -79,10 +80,10 @@ export class DistRegistry {
     return versions.some((v) => v.version === version);
   }
 
-  async addPackageVersion(packageName: string, versionStr: string) {
+  async addPackageVersion(packageName: string, versionStr: string, projectType: JaculusConfig['projectType'], isTemplate: JaculusConfig['template']) {
     // add package to list if it doesn't exist
     if (!this.existsPackage(packageName)) {
-      this.list.push({ id: packageName });
+      this.list.push({ id: packageName, projectType, isTemplate });
       await this.saveUpdatedList();
     }
 
