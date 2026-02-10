@@ -6,11 +6,14 @@ import os from 'os';
 import * as tar from 'tar';
 import { copyDirectory, writeJSONFile } from '../utils/fs.js';
 import { copyFile } from '../utils/fs.js';
-import { JaculusConfig, loadPackageJson, PackageJson } from '@jaculus/project';
+import { loadPackageJson, PackageJson } from '@jaculus/project';
 import { DistRegistry } from '../localRegistry.js';
 
-
-export async function copyTemplateHelper(pathToPackage: string, distRegistry: DistRegistry, pkg: PackageJson) {
+export async function copyTemplateHelper(
+  pathToPackage: string,
+  distRegistry: DistRegistry,
+  pkg: PackageJson,
+) {
   const pathToOutputRegistryVer = path.join(distRegistry.getOutputPath(), pkg.name, pkg.version);
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'registry-copy-'));
   try {
@@ -48,8 +51,12 @@ export async function copyTemplateHelper(pathToPackage: string, distRegistry: Di
   }
 }
 
-export async function buildCopyHelper(pathToPackage: string, distRegistry: DistRegistry, pkg: PackageJson) {
-  await buildJacPackage(pathToPackage, pkg.jaculus?.projectType);
+export async function buildCopyHelper(
+  pathToPackage: string,
+  distRegistry: DistRegistry,
+  pkg: PackageJson,
+) {
+  await buildJacPackage(pathToPackage);
   await copyBuiltPackagesToRegistryDist(
     pathToPackage,
     distRegistry.getOutputPath(),
@@ -57,7 +64,6 @@ export async function buildCopyHelper(pathToPackage: string, distRegistry: DistR
     pkg.version,
   );
 }
-
 
 // Utils
 
@@ -87,16 +93,10 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
   });
 }
 
-async function buildJacPackage(pathToPackage: string, projectType: JaculusConfig['projectType']) {
-  await runCommand(pathToPackage, 'pnpm', ['install']);
-  switch (projectType) {
-    case 'code':
-      await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
-      break;
-    case 'jacly': {
-      await copyDirectory(path.join(pathToPackage, 'src'), path.join(pathToPackage, 'dist'), true);
-      break;
-    }
+async function buildJacPackage(pathToPackage: string) {
+  if (fs.existsSync(path.join(pathToPackage, 'src'))) {
+    await runCommand(pathToPackage, 'pnpm', ['install']);
+    await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
   }
 }
 
@@ -130,6 +130,8 @@ export async function copyBuiltPackagesToRegistryDist(
     await fsp.mkdir(packageDir, { recursive: true });
 
     // Copy required directories and files
+    console.log(`Wr: ${path.join(pathToRegistry, 'dist')}`);
+
     await copyDirectory(path.join(pathToRegistry, 'dist'), path.join(packageDir, 'dist'), true);
     await copyDirectory(path.join(pathToRegistry, 'blocks'), path.join(packageDir, 'blocks'), true);
     await copyFile('package.json', pathToRegistry, packageDir);

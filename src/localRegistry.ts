@@ -80,7 +80,12 @@ export class DistRegistry {
     return versions.some((v) => v.version === version);
   }
 
-  async addPackageVersion(packageName: string, versionStr: string, projectType: JaculusConfig['projectType'], isTemplate: JaculusConfig['template']) {
+  async addPackageVersion(
+    packageName: string,
+    versionStr: string,
+    projectType: JaculusConfig['projectType'],
+    isTemplate: JaculusConfig['template'],
+  ) {
     // add package to list if it doesn't exist
     if (!this.existsPackage(packageName)) {
       this.list.push({ id: packageName, projectType, isTemplate });

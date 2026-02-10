@@ -63,10 +63,13 @@ async function buildCopyPackage(
     await buildCopyHelper(pathToPackage, distRegistry, pkg);
   }
 
-
-
   // register new version in dist registry and save updates
-  await distRegistry.addPackageVersion(pkg.name, pkg.version, pkg.jaculus?.projectType, pkg.jaculus?.template);
+  await distRegistry.addPackageVersion(
+    pkg.name,
+    pkg.version,
+    pkg.jaculus?.projectType,
+    pkg.jaculus?.template,
+  );
 }
 
 export async function watchAndBuildPackagesInRegistry(
