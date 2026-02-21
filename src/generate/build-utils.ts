@@ -6,8 +6,8 @@ import os from 'os';
 import * as tar from 'tar';
 import { copyDirectory, writeJSONFile } from '../utils/fs.js';
 import { copyFile } from '../utils/fs.js';
-import { loadPackageJson, PackageJson } from '@jaculus/project';
 import { DistRegistry } from '../localRegistry.js';
+import { PackageJson, loadPackageJson } from '@jaculus/project/package';
 
 export async function copyTemplateHelper(
   pathToPackage: string,
@@ -95,7 +95,7 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
 
 async function buildJacPackage(pathToPackage: string) {
   if (fs.existsSync(path.join(pathToPackage, 'src'))) {
-    await runCommand(pathToPackage, 'pnpm', ['install']);
+    await runCommand(pathToPackage, 'jac', ['lib-install']);
     await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
   }
 }

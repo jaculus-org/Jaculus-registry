@@ -1,9 +1,9 @@
 import fs, { promises as fsp } from 'fs';
 import { blue, green, red, yellow } from 'ansis';
 import path from 'path';
-import { loadPackageJson } from '@jaculus/project';
 import { DistRegistry } from '../localRegistry.js';
 import { buildCopyHelper, copyTemplateHelper } from './build-utils.js';
+import { loadPackageJson } from '@jaculus/project/package';
 
 const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_modules, dist, and dotfiles
 

@@ -8,7 +8,7 @@ import path from 'path';
 import { promises as fsp } from 'fs';
 
 import semver from 'semver';
-import { JaculusConfig } from '@jaculus/project';
+import { JaculusConfig } from '@jaculus/project/package';
 
 export class DistRegistry {
   // Versions are stored sorted by semver: index 0 = oldest, last index = latest
