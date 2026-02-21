@@ -76,7 +76,6 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
     const child = spawn(command, args, {
       cwd: pathToPackage,
       stdio: 'inherit',
-      shell: true,
     });
 
     child.on('exit', (code) => {
