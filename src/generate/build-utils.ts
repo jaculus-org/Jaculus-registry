@@ -160,6 +160,47 @@ export async function resolvePackageJsonWorkspace(fileName: string, sourceDir: s
   await writeJSONFile(packageJsonPath, packageJson);
 }
 
+export async function validateBlocksDirectory(blocksDir: string) {
+  if (!fs.existsSync(blocksDir)) {
+    return;
+  }
+  const files = await fsp.readdir(blocksDir);
+  for (const file of files) {
+    if (file.endsWith('.jacly.json')) {
+      const filePath = path.join(blocksDir, file);
+      const content = JSON.parse(await fsp.readFile(filePath, 'utf-8'));
+      const category = content.category;
+
+      if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(category)) {
+        throw new Error(
+          `Invalid category name: ${category}. Category must start with a letter and can only contain lowercase letters, numbers and underscores.`,
+        );
+      }
+
+      const expectedFileName = `${category}.jacly.json`;
+      if (file !== expectedFileName) {
+        throw new Error(
+          `Invalid blocks file name: ${file}. Expected file name for category "${category}" is "${expectedFileName}".`,
+        );
+      }
+    } else if (file === 'translations') {
+      const translationsDir = path.join(blocksDir, file);
+      const translationFiles = await fsp.readdir(translationsDir);
+      for (const translationFile of translationFiles) {
+        if (!translationFile.endsWith('.lang.json')) {
+          throw new Error(
+            `Invalid translation file name: ${translationFile}. Expected file name to end with ".lang.json".`,
+          );
+        }
+      }
+    } else {
+      throw new Error(
+        `Invalid file in blocks directory: ${file}. Expected files are <category>.jacly.json or translations/<lang>.lang.json.`,
+      );
+    }
+  }
+}
+
 export async function copyBuiltPackagesToRegistryDist(
   pathToRegistry: string,
   outputRegistryDist: string,
@@ -174,10 +215,10 @@ export async function copyBuiltPackagesToRegistryDist(
     await fsp.mkdir(packageDir, { recursive: true });
 
     // Copy required directories and files
-    console.log(`Wr: ${path.join(pathToRegistry, 'dist')}`);
-
     await copyDirectory(path.join(pathToRegistry, 'dist'), path.join(packageDir, 'dist'), true);
     await copyDirectory(path.join(pathToRegistry, 'blocks'), path.join(packageDir, 'blocks'), true);
+    validateBlocksDirectory(path.join(packageDir, 'blocks'));
+
     await copyFile('package.json', pathToRegistry, packageDir);
     await resolvePackageJsonWorkspace('package.json', packageDir);
     await copyFile('README.md', pathToRegistry, packageDir, true);

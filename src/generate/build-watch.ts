@@ -192,7 +192,9 @@ export async function buildAllPackagesInRegistry(
   }
 
   // transpile and copy to dist
-  console.log(blue(`Pass 1/3: Transpiling ${toProcess.length} package(s) and publishing to dist...`));
+  console.log(
+    blue(`Pass 1/3: Transpiling ${toProcess.length} package(s) and publishing to dist...`),
+  );
   for (const { path: pkgPath, pkg } of toProcess) {
     console.log(blue(`  Transpiling ${pkg.name}@${pkg.version} in ${pkgPath}`));
     try {
@@ -201,7 +203,12 @@ export async function buildAllPackagesInRegistry(
       } else {
         await transpileCopyHelper(pkgPath, distRegistry, pkg);
       }
-      await distRegistry.addPackageVersion(pkg.name, pkg.version, pkg.jaculus?.projectType, pkg.jaculus?.template);
+      await distRegistry.addPackageVersion(
+        pkg.name,
+        pkg.version,
+        pkg.jaculus?.projectType,
+        pkg.jaculus?.template,
+      );
     } catch (err) {
       console.error(red(`  Pass 1 failed for ${pkg.name}: `), err);
       throw err;
