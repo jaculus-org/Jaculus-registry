@@ -56,7 +56,35 @@ export async function buildCopyHelper(
   distRegistry: DistRegistry,
   pkg: PackageJson,
 ) {
-  await buildJacPackage(pathToPackage);
+  await buildJacPackage(pathToPackage, pkg);
+  await copyBuiltPackagesToRegistryDist(
+    pathToPackage,
+    distRegistry.getOutputPath(),
+    pkg.name,
+    pkg.version,
+  );
+}
+
+export async function transpileCopyHelper(
+  pathToPackage: string,
+  distRegistry: DistRegistry,
+  pkg: PackageJson,
+) {
+  await transpileJacPackage(pathToPackage, pkg);
+  await copyBuiltPackagesToRegistryDist(
+    pathToPackage,
+    distRegistry.getOutputPath(),
+    pkg.name,
+    pkg.version,
+  );
+}
+
+export async function fullBuildCopyHelper(
+  pathToPackage: string,
+  distRegistry: DistRegistry,
+  pkg: PackageJson,
+) {
+  await fullBuildJacPackage(pathToPackage, pkg);
   await copyBuiltPackagesToRegistryDist(
     pathToPackage,
     distRegistry.getOutputPath(),
@@ -92,11 +120,28 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
   });
 }
 
-async function buildJacPackage(pathToPackage: string) {
-  if (fs.existsSync(path.join(pathToPackage, 'src'))) {
-    await runCommand(pathToPackage, 'jac', ['lib-install']);
+export async function transpileJacPackage(pathToPackage: string, pkg: PackageJson) {
+  if (fs.existsSync(path.join(pathToPackage, 'src')) && pkg.scripts?.transpile) {
+    await runCommand(pathToPackage, 'pnpm', ['run', 'transpile']);
+  }
+}
+
+export async function installJacPackageDeps(pathToPackage: string, pkg: PackageJson) {
+  if (pkg.scripts?.install) {
+    await runCommand(pathToPackage, 'pnpm', ['run', 'install']);
+  }
+}
+
+export async function fullBuildJacPackage(pathToPackage: string, pkg: PackageJson) {
+  if (fs.existsSync(path.join(pathToPackage, 'src')) && pkg.scripts?.build) {
     await runCommand(pathToPackage, 'pnpm', ['run', 'build']);
   }
+}
+
+async function buildJacPackage(pathToPackage: string, pkg: PackageJson) {
+  await transpileJacPackage(pathToPackage, pkg);
+  await installJacPackageDeps(pathToPackage, pkg);
+  await fullBuildJacPackage(pathToPackage, pkg);
 }
 
 export async function resolvePackageJsonWorkspace(fileName: string, sourceDir: string) {

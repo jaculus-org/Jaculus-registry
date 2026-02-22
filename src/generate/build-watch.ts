@@ -2,7 +2,13 @@ import fs, { promises as fsp } from 'fs';
 import { blue, green, red, yellow } from 'ansis';
 import path from 'path';
 import { DistRegistry } from '../localRegistry.js';
-import { buildCopyHelper, copyTemplateHelper } from './build-utils.js';
+import {
+  buildCopyHelper,
+  copyTemplateHelper,
+  transpileCopyHelper,
+  fullBuildCopyHelper,
+  installJacPackageDeps,
+} from './build-utils.js';
 import { loadPackageJson } from '@jaculus/project/package';
 
 const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_modules, dist, and dotfiles
@@ -134,31 +140,99 @@ function isIgnored(name: string) {
   );
 }
 
+async function collectPackagePaths(pathToRegistry: string): Promise<string[]> {
+  const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
+  const packagePaths: string[] = [];
+  for (const dirent of packages) {
+    if (!dirent.isDirectory() || isIgnored(dirent.name)) continue;
+    const packagePath = path.join(pathToRegistry, dirent.name);
+    if (dirent.name.startsWith('@')) {
+      const scopedPackages = await fsp.readdir(packagePath, { withFileTypes: true });
+      for (const scopedDirent of scopedPackages) {
+        if (scopedDirent.isDirectory() && !isIgnored(scopedDirent.name)) {
+          packagePaths.push(path.join(packagePath, scopedDirent.name));
+        }
+      }
+    } else {
+      packagePaths.push(packagePath);
+    }
+  }
+  return packagePaths;
+}
+
 export async function buildAllPackagesInRegistry(
   pathToRegistry: string,
   distRegistry: DistRegistry,
   overrideExisting = false,
 ) {
-  const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
-  for await (const dirent of packages) {
-    if (dirent.isDirectory() && !isIgnored(dirent.name)) {
-      const packagePath = path.join(pathToRegistry, dirent.name);
+  const packagePaths = await collectPackagePaths(pathToRegistry);
 
-      // Handle scoped/namespaced packages (e.g., @types/jaculus)
-      if (dirent.name.startsWith('@')) {
-        // This is a namespace folder, iterate through its subdirectories
-        const scopedPackages = await fsp.readdir(packagePath, { withFileTypes: true });
-        for await (const scopedDirent of scopedPackages) {
-          if (scopedDirent.isDirectory() && !isIgnored(scopedDirent.name)) {
-            const scopedPackagePath = path.join(packagePath, scopedDirent.name);
-            console.log(`Building scoped package in ${scopedPackagePath}`);
-            await buildCopyPackage(scopedPackagePath, distRegistry, overrideExisting);
-          }
+  // Collect pkg metadata for each path
+  const packages = await Promise.all(
+    packagePaths.map(async (pkgPath) => ({
+      path: pkgPath,
+      pkg: await loadPackageJson(fs, path.join(pkgPath, 'package.json')),
+    })),
+  );
+
+  // Filter out already-existing versions (unless overriding)
+  const toProcess = overrideExisting
+    ? packages
+    : packages.filter(({ pkg }) => {
+        if (distRegistry.existsVersion(pkg.name, pkg.version)) {
+          console.error(yellow(`Package ${pkg.name}@${pkg.version} already exists. Skipping.`));
+          return false;
         }
+        return true;
+      });
+
+  if (toProcess.length === 0) {
+    console.log(blue('All packages already up to date.'));
+    return;
+  }
+
+  // transpile and copy to dist
+  console.log(blue(`Pass 1/3: Transpiling ${toProcess.length} package(s) and publishing to dist...`));
+  for (const { path: pkgPath, pkg } of toProcess) {
+    console.log(blue(`  Transpiling ${pkg.name}@${pkg.version} in ${pkgPath}`));
+    try {
+      if (pkg.jaculus?.template) {
+        await copyTemplateHelper(pkgPath, distRegistry, pkg);
       } else {
-        console.log(`Building package in ${packagePath}`);
-        await buildCopyPackage(packagePath, distRegistry, overrideExisting);
+        await transpileCopyHelper(pkgPath, distRegistry, pkg);
       }
+      await distRegistry.addPackageVersion(pkg.name, pkg.version, pkg.jaculus?.projectType, pkg.jaculus?.template);
+    } catch (err) {
+      console.error(red(`  Pass 1 failed for ${pkg.name}: `), err);
+      throw err;
     }
   }
+
+  // install dependencies for all packages
+  console.log(blue(`Pass 2/3: Installing dependencies for ${toProcess.length} package(s)...`));
+  for (const { path: pkgPath, pkg } of toProcess) {
+    if (pkg.jaculus?.template) continue; // templates have no src deps to install
+    console.log(blue(`  Installing deps for ${pkg.name}@${pkg.version}`));
+    try {
+      await installJacPackageDeps(pkgPath, pkg);
+    } catch (err) {
+      console.error(red(`  Pass 2 failed for ${pkg.name}: `), err);
+      throw err;
+    }
+  }
+
+  // build with type checking and copy results
+  console.log(blue(`Pass 3/3: Full build for ${toProcess.length} package(s)...`));
+  for (const { path: pkgPath, pkg } of toProcess) {
+    if (pkg.jaculus?.template) continue; // already copied in pass 1
+    console.log(blue(`  Building ${pkg.name}@${pkg.version}`));
+    try {
+      await fullBuildCopyHelper(pkgPath, distRegistry, pkg);
+    } catch (err) {
+      console.error(red(`  Pass 3 failed for ${pkg.name}: `), err);
+      throw err;
+    }
+  }
+
+  console.log(green(`Done. ${toProcess.length} package(s) built and published.`));
 }
