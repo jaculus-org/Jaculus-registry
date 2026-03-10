@@ -121,8 +121,8 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
 }
 
 export async function transpileJacPackage(pathToPackage: string, pkg: PackageJson) {
-  if (fs.existsSync(path.join(pathToPackage, 'src')) && pkg.scripts?.transpile) {
-    await runCommand(pathToPackage, 'pnpm', ['run', 'transpile']);
+  if (fs.existsSync(path.join(pathToPackage, 'src')) && pkg.scripts?.['build-no-check']) {
+    await runCommand(pathToPackage, 'pnpm', ['run', 'build-no-check']);
   }
 }
 
@@ -217,7 +217,7 @@ export async function copyBuiltPackagesToRegistryDist(
     // Copy required directories and files
     await copyDirectory(path.join(pathToRegistry, 'dist'), path.join(packageDir, 'dist'), true);
     await copyDirectory(path.join(pathToRegistry, 'blocks'), path.join(packageDir, 'blocks'), true);
-    validateBlocksDirectory(path.join(packageDir, 'blocks'));
+    await validateBlocksDirectory(path.join(packageDir, 'blocks'));
 
     await copyFile('package.json', pathToRegistry, packageDir);
     await resolvePackageJsonWorkspace('package.json', packageDir);

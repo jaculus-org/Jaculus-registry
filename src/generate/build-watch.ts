@@ -72,6 +72,7 @@ async function buildCopyPackage(
   // register new version in dist registry and save updates
   await distRegistry.addPackageVersion(
     pkg.name,
+    pkg.description || '',
     pkg.version,
     pkg.jaculus?.projectType,
     pkg.jaculus?.template,
@@ -205,6 +206,7 @@ export async function buildAllPackagesInRegistry(
       }
       await distRegistry.addPackageVersion(
         pkg.name,
+        pkg.description || '',
         pkg.version,
         pkg.jaculus?.projectType,
         pkg.jaculus?.template,

@@ -2,7 +2,7 @@ import {
   parseRegistryList,
   parseRegistryVersions,
   RegistryList,
-  RegistryVersions,
+  RegistryVersion,
 } from '@jaculus/project/registry';
 import path from 'path';
 import { promises as fsp } from 'fs';
@@ -12,8 +12,8 @@ import { JaculusConfig } from '@jaculus/project/package';
 
 export class DistRegistry {
   // Versions are stored sorted by semver: index 0 = oldest, last index = latest
-  private list: RegistryList = [];
-  private versionsMap: Map<string, RegistryVersions> = new Map();
+  private list: RegistryList[] = [];
+  private versionsMap: Map<string, RegistryVersion[]> = new Map();
 
   constructor(private outputRegistryDist: string) {}
 
@@ -55,7 +55,7 @@ export class DistRegistry {
     return this.list.map((item) => item.id);
   }
 
-  getAvailableVersions(packageName: string): RegistryVersions {
+  getAvailableVersions(packageName: string): RegistryVersion[] {
     return this.versionsMap.get(packageName) || [];
   }
 
@@ -82,13 +82,14 @@ export class DistRegistry {
 
   async addPackageVersion(
     packageName: string,
+    packageDescription: string,
     versionStr: string,
     projectType: JaculusConfig['projectType'],
     isTemplate: JaculusConfig['template'],
   ) {
     // add package to list if it doesn't exist
     if (!this.existsPackage(packageName)) {
-      this.list.push({ id: packageName, projectType, isTemplate });
+      this.list.push({ id: packageName, description: packageDescription, projectType, isTemplate });
       await this.saveUpdatedList();
     }
 
