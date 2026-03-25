@@ -27,10 +27,11 @@ const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_
  *
  * package.tar.gz contains:
  *   package/
- *     |-- dist/
- *     |-- blocks/
  *     |-- package.json
  *     |-- README.md
+ *     |-- tsconfig.json
+ *     |-- blocks/ (or the path from jaculus.blocks)
+ *     |-- files matched by package.json#files
  */
 
 async function buildCopyPackage(

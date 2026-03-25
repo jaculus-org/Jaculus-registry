@@ -56,6 +56,8 @@ Commands:
   help [command]                                     display help for command
 ```
 
+Published package archives always include `package.json`, optional `README.md`, optional `tsconfig.json`, and the declared blocks directory (typically `blocks/`). Any generated code or other shipped files are copied according to the package's `package.json#files` entries, and glob patterns are supported.
+
 ## Running from CI
 
 Jaculus-registry is mainly designed to be run from CI pipelines to automate updating and building the registry.

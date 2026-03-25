@@ -22,6 +22,9 @@ importers:
       http-server:
         specifier: ^14.1.1
         version: 14.1.1
+      minimatch:
+        specifier: ^9.0.5
+        version: 9.0.5
       semver:
         specifier: ^7.7.3
         version: 7.7.3

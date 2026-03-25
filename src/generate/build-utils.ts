@@ -4,10 +4,106 @@ import path from 'path';
 import { spawn } from 'child_process';
 import os from 'os';
 import * as tar from 'tar';
+import { minimatch } from 'minimatch';
 import { copyDirectory, writeJSONFile } from '../utils/fs.js';
 import { copyFile } from '../utils/fs.js';
 import { DistRegistry } from '../localRegistry.js';
 import { PackageJson, loadPackageJson } from '@jaculus/project/package';
+
+const IGNORED_PACKAGE_DIRS = new Set(['node_modules', '.git']);
+
+function getBlocksDir(pkg: PackageJson): string | null {
+  return pkg.jaculus?.blocks ?? 'blocks';
+}
+
+function matchesPackageFilesPattern(relPath: string, patterns: string[]): boolean {
+  const normalizedRelPath = relPath.replace(/\\/g, '/');
+
+  for (const pattern of patterns) {
+    const posixPattern = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
+    const cleanPattern = posixPattern.replace(/\/$/, '');
+
+    if (
+      minimatch(normalizedRelPath, posixPattern) ||
+      minimatch(normalizedRelPath, `${cleanPattern}/**`)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function copyMatchedPackageFiles(
+  sourceDir: string,
+  targetDir: string,
+  patterns: string[],
+  currentDir = sourceDir,
+) {
+  if (patterns.length === 0 || !fs.existsSync(currentDir)) {
+    return;
+  }
+
+  const entries = await fsp.readdir(currentDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.isDirectory() && IGNORED_PACKAGE_DIRS.has(entry.name)) {
+      continue;
+    }
+
+    const sourcePath = path.join(currentDir, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyMatchedPackageFiles(sourceDir, targetDir, patterns, sourcePath);
+      continue;
+    }
+
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const relPath = path.relative(sourceDir, sourcePath).replace(/\\/g, '/');
+    if (!matchesPackageFilesPattern(relPath, patterns)) {
+      continue;
+    }
+
+    const destinationPath = path.join(targetDir, relPath);
+    await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
+    await fsp.copyFile(sourcePath, destinationPath);
+  }
+}
+
+async function copyDefaultPackageFiles(
+  pathToPackage: string,
+  packageDir: string,
+  pkg: PackageJson,
+) {
+  await copyFile('package.json', pathToPackage, packageDir);
+  await copyFile('README.md', pathToPackage, packageDir, true);
+  await copyFile('tsconfig.json', pathToPackage, packageDir, true);
+  await copyFile('.gitignore', pathToPackage, packageDir, true);
+
+  const blocksDir = getBlocksDir(pkg);
+  if (blocksDir) {
+    await copyDirectory(
+      path.join(pathToPackage, blocksDir),
+      path.join(packageDir, blocksDir),
+      true,
+    );
+    await validateBlocksDirectory(path.join(packageDir, blocksDir));
+  }
+
+  await resolvePackageJsonWorkspace('package.json', packageDir);
+}
+
+async function copyPackageFilesFromManifest(
+  pathToPackage: string,
+  packageDir: string,
+  pkg: PackageJson,
+) {
+  const filesArray = pkg.files ?? [];
+  await copyMatchedPackageFiles(pathToPackage, packageDir, filesArray);
+}
 
 export async function copyTemplateHelper(
   pathToPackage: string,
@@ -21,12 +117,8 @@ export async function copyTemplateHelper(
     const packageDir = path.join(tempDir, 'package');
     await fsp.mkdir(packageDir, { recursive: true });
 
-    // Copy required directories and files
-    await copyDirectory(path.join(pathToPackage, 'src'), path.join(packageDir, 'src'), true);
-    await copyFile('package.json', pathToPackage, packageDir);
-    await resolvePackageJsonWorkspace('package.json', packageDir);
-    await copyFile('tsconfig.json', pathToPackage, packageDir);
-    await copyFile('README.md', pathToPackage, packageDir, true);
+    await copyPackageFilesFromManifest(pathToPackage, packageDir, pkg);
+    await copyDefaultPackageFiles(pathToPackage, packageDir, pkg);
 
     // Create tar.gz archive
     const tarGzPath = path.join(pathToOutputRegistryVer, 'package.tar.gz');
@@ -128,7 +220,7 @@ export async function transpileJacPackage(pathToPackage: string, pkg: PackageJso
 
 export async function installJacPackageDeps(pathToPackage: string, pkg: PackageJson) {
   if (pkg.scripts?.install) {
-    await runCommand(pathToPackage, 'pnpm', ['run', 'install']);
+    await runCommand(pathToPackage, 'pnpm', ['run', 'install', '--user-registry', 'http://127.0.0.1:3737/']);
   }
 }
 
@@ -210,18 +302,14 @@ export async function copyBuiltPackagesToRegistryDist(
   const pathToOutputRegistryVer = path.join(outputRegistryDist, packageName, version);
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'registry-copy-'));
   try {
+    const pkg = await loadPackageJson(fs, path.join(pathToRegistry, 'package.json'));
+
     // Create package structure in temp directory
     const packageDir = path.join(tempDir, 'package');
     await fsp.mkdir(packageDir, { recursive: true });
 
-    // Copy required directories and files
-    await copyDirectory(path.join(pathToRegistry, 'dist'), path.join(packageDir, 'dist'), true);
-    await copyDirectory(path.join(pathToRegistry, 'blocks'), path.join(packageDir, 'blocks'), true);
-    await validateBlocksDirectory(path.join(packageDir, 'blocks'));
-
-    await copyFile('package.json', pathToRegistry, packageDir);
-    await resolvePackageJsonWorkspace('package.json', packageDir);
-    await copyFile('README.md', pathToRegistry, packageDir, true);
+    await copyPackageFilesFromManifest(pathToRegistry, packageDir, pkg);
+    await copyDefaultPackageFiles(pathToRegistry, packageDir, pkg);
 
     // Create tar.gz archive
     const tarGzPath = path.join(pathToOutputRegistryVer, 'package.tar.gz');
