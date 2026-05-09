@@ -8,10 +8,21 @@ import {
   transpileCopyHelper,
   fullBuildCopyHelper,
   installJacPackageDeps,
+  terminateRunningCommands,
 } from './build-utils.js';
 import { loadPackageJson } from '@jaculus/project/package';
 
 const folderIgnoreListGlobe = ['node_modules', 'dist', /^\..*/]; // ignore node_modules, dist, and dotfiles
+const watchDebounceMs = 150;
+
+async function hasPackageJson(packagePath: string) {
+  try {
+    const stat = await fsp.stat(path.join(packagePath, 'package.json'));
+    return stat.isFile();
+  } catch {
+    return false;
+  }
+}
 
 /**
  *
@@ -84,10 +95,17 @@ export async function watchAndBuildPackagesInRegistry(
   pathToRegistry: string,
   distRegistry: DistRegistry,
 ) {
-  fs.watch(pathToRegistry, { recursive: true }, async (eventType, filename) => {
-    // rebuild on any change, rebuild only corresponding package
-    if (!filename) return;
+  type PackageBuildState = {
+    running: boolean;
+    pending: boolean;
+    timer: NodeJS.Timeout | null;
+    filename: string;
+  };
 
+  const packageBuildStates = new Map<string, PackageBuildState>();
+  let shuttingDown = false;
+
+  async function resolvePackagePath(filename: string) {
     // normalize and split relative path reported by watcher
     const parts = filename.split(path.sep).filter(Boolean);
     if (
@@ -97,17 +115,17 @@ export async function watchAndBuildPackagesInRegistry(
         ),
       )
     )
-      return;
+      return null;
 
     // If the change is at the registry root (e.g. a top-level package.json), ignore it
-    if (parts.length === 0) return;
+    if (parts.length === 0) return null;
 
     // Handle scoped packages (e.g., @types/jaculus)
     // For scoped packages, the actual package is at parts[0]/parts[1]
     let packagePath: string;
     if (parts[0].startsWith('@')) {
       // Scoped package - need at least 2 parts (e.g., @types/jaculus)
-      if (parts.length < 2) return;
+      if (parts.length < 2) return null;
       packagePath = path.join(pathToRegistry, parts[0], parts[1]);
     } else {
       // Regular package
@@ -118,21 +136,110 @@ export async function watchAndBuildPackagesInRegistry(
       const stat = await fsp.stat(packagePath);
       if (!stat.isDirectory()) {
         // Not a package directory -- ignore
-        return;
+        return null;
+      }
+      if (!(await hasPackageJson(packagePath))) {
+        return null;
       }
     } catch {
       // Path does not exist or cannot be accessed; ignore noisy watcher events
+      return null;
+    }
+
+    return packagePath;
+  }
+
+  async function rebuildPackage(packagePath: string) {
+    const state = packageBuildStates.get(packagePath);
+    if (!state || shuttingDown) return;
+
+    if (state.running) {
+      state.pending = true;
       return;
     }
 
-    console.log(blue(`Change detected in ${filename}. Rebuilding package in ${packagePath}`));
+    state.running = true;
+    state.pending = false;
+
+    console.log(blue(`Change detected in ${state.filename}. Rebuilding package in ${packagePath}`));
     try {
       await buildCopyPackage(packagePath, distRegistry, true);
       console.log(green(`Rebuild of package in ${packagePath} completed successfully.`));
     } catch (err) {
-      console.error(red(`Rebuild of package in ${packagePath} failed:\n`), err);
+      if (!shuttingDown) {
+        console.error(red(`Rebuild of package in ${packagePath} failed:\n`), err);
+      }
+    } finally {
+      state.running = false;
+
+      if (state.pending && !shuttingDown) {
+        state.timer = setTimeout(() => {
+          state.timer = null;
+          void rebuildPackage(packagePath);
+        }, watchDebounceMs);
+      }
     }
+  }
+
+  function schedulePackageRebuild(packagePath: string, filename: string) {
+    let state = packageBuildStates.get(packagePath);
+    if (!state) {
+      state = {
+        running: false,
+        pending: false,
+        timer: null,
+        filename,
+      };
+      packageBuildStates.set(packagePath, state);
+    }
+
+    state.filename = filename;
+
+    if (state.running) {
+      state.pending = true;
+      return;
+    }
+
+    if (state.timer) {
+      clearTimeout(state.timer);
+    }
+
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      void rebuildPackage(packagePath);
+    }, watchDebounceMs);
+  }
+
+  const watcher = fs.watch(pathToRegistry, { recursive: true }, (_eventType, filename) => {
+    void (async () => {
+      // rebuild on any change, rebuild only corresponding package
+      if (!filename || shuttingDown) return;
+
+      const packagePath = await resolvePackagePath(filename);
+      if (!packagePath || shuttingDown) return;
+
+      schedulePackageRebuild(packagePath, filename);
+    })().catch((err) => {
+      if (!shuttingDown) {
+        console.error(red('Failed to process registry watch event:\n'), err);
+      }
+    });
   });
+
+  process.once('SIGINT', () => {
+    shuttingDown = true;
+    watcher.close();
+    for (const state of packageBuildStates.values()) {
+      if (state.timer) {
+        clearTimeout(state.timer);
+        state.timer = null;
+      }
+    }
+    terminateRunningCommands();
+    console.log('\nStopped registry build watcher.');
+    process.exitCode = 130;
+  });
+
   console.log(`Watching for changes in ${pathToRegistry}...`);
 }
 
@@ -151,11 +258,16 @@ async function collectPackagePaths(pathToRegistry: string): Promise<string[]> {
     if (dirent.name.startsWith('@')) {
       const scopedPackages = await fsp.readdir(packagePath, { withFileTypes: true });
       for (const scopedDirent of scopedPackages) {
-        if (scopedDirent.isDirectory() && !isIgnored(scopedDirent.name)) {
-          packagePaths.push(path.join(packagePath, scopedDirent.name));
+        if (!scopedDirent.isDirectory() || isIgnored(scopedDirent.name)) {
+          continue;
+        }
+
+        const scopedPackagePath = path.join(packagePath, scopedDirent.name);
+        if (await hasPackageJson(scopedPackagePath)) {
+          packagePaths.push(scopedPackagePath);
         }
       }
-    } else {
+    } else if (await hasPackageJson(packagePath)) {
       packagePaths.push(packagePath);
     }
   }
@@ -211,6 +323,7 @@ export async function buildAllPackagesInRegistry(
         pkg.version,
         pkg.jaculus?.projectType,
         pkg.jaculus?.template,
+        pkg.jaculus?.templatePriority as number | undefined,
       );
     } catch (err) {
       console.error(red(`  Pass 1 failed for ${pkg.name}: `), err);

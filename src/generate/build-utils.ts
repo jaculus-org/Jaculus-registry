@@ -1,7 +1,7 @@
 import fs, { promises as fsp } from 'fs';
 import { blue, green } from 'ansis';
 import path from 'path';
-import { spawn } from 'child_process';
+import { type ChildProcess, spawn } from 'child_process';
 import os from 'os';
 import * as tar from 'tar';
 import { minimatch } from 'minimatch';
@@ -11,6 +11,17 @@ import { DistRegistry } from '../localRegistry.js';
 import { PackageJson, loadPackageJson } from '@jaculus/project/package';
 
 const IGNORED_PACKAGE_DIRS = new Set(['node_modules', '.git']);
+const runningCommands = new Set<ChildProcess>();
+let isShuttingDown = false;
+
+export function terminateRunningCommands() {
+  isShuttingDown = true;
+  for (const child of runningCommands) {
+    if (!child.killed) {
+      child.kill('SIGINT');
+    }
+  }
+}
 
 function getBlocksDir(pkg: PackageJson): string | null {
   return pkg.jaculus?.blocks ?? 'blocks';
@@ -191,6 +202,10 @@ export async function fullBuildCopyHelper(
  * Build all packages in the registry located at pathToRegistry
  */
 async function runCommand(pathToPackage: string, command: string, args: string[]): Promise<void> {
+  if (isShuttingDown) {
+    return;
+  }
+
   console.log(blue(`Running command: ${command} ${args.join(' ')} in ${pathToPackage}`));
   return new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
@@ -198,7 +213,15 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
       stdio: 'inherit',
     });
 
+    runningCommands.add(child);
+
     child.on('exit', (code) => {
+      runningCommands.delete(child);
+      if (isShuttingDown) {
+        resolve();
+        return;
+      }
+
       if (code === 0) {
         resolve();
       } else {
@@ -207,6 +230,7 @@ async function runCommand(pathToPackage: string, command: string, args: string[]
     });
 
     child.on('error', (err) => {
+      runningCommands.delete(child);
       reject(err);
     });
   });

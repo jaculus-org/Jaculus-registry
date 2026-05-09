@@ -86,10 +86,11 @@ export class DistRegistry {
     versionStr: string,
     projectType: JaculusConfig['projectType'],
     isTemplate: JaculusConfig['template'],
+    templatePriority?: number,
   ) {
     // add package to list if it doesn't exist
     if (!this.existsPackage(packageName)) {
-      this.list.push({ id: packageName, description: packageDescription, projectType, isTemplate });
+      this.list.push({ id: packageName, description: packageDescription, projectType, isTemplate, templatePriority });
       await this.saveUpdatedList();
     }
 
