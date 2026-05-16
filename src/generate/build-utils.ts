@@ -96,11 +96,6 @@ async function copyDefaultPackageFiles(
 
   const blocksDir = getBlocksDir(pkg);
   if (blocksDir) {
-    await copyDirectory(
-      path.join(pathToPackage, blocksDir),
-      path.join(packageDir, blocksDir),
-      true,
-    );
     await validateBlocksDirectory(path.join(packageDir, blocksDir));
   }
 
