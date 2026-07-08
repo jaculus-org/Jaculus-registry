@@ -239,7 +239,12 @@ export async function transpileJacPackage(pathToPackage: string, pkg: PackageJso
 
 export async function installJacPackageDeps(pathToPackage: string, pkg: PackageJson) {
   if (pkg.scripts?.install) {
-    await runCommand(pathToPackage, 'pnpm', ['run', 'install', '--user-registry', 'http://127.0.0.1:3737/']);
+    await runCommand(pathToPackage, 'pnpm', [
+      'run',
+      'install',
+      '--user-registry',
+      'http://127.0.0.1:3737/',
+    ]);
   }
 }
 

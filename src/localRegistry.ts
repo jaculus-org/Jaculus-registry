@@ -90,7 +90,13 @@ export class DistRegistry {
   ) {
     // add package to list if it doesn't exist
     if (!this.existsPackage(packageName)) {
-      this.list.push({ id: packageName, description: packageDescription, projectType, isTemplate, templatePriority });
+      this.list.push({
+        id: packageName,
+        description: packageDescription,
+        projectType,
+        isTemplate,
+        templatePriority,
+      });
       await this.saveUpdatedList();
     }
 

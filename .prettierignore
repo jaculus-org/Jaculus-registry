@@ -3,3 +3,4 @@ dist/
 bin/
 coverage/
 *.log
+**/pnpm-lock.yaml
