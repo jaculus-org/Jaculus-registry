@@ -23,8 +23,8 @@ export function terminateRunningCommands() {
   }
 }
 
-function getBlocksDir(pkg: PackageJson): string | null {
-  return pkg.jaculus?.blocks ?? 'blocks';
+function getBlocksDir(pkg: PackageJson): string | undefined {
+  return pkg.jaculus?.blocks;
 }
 
 function matchesPackageFilesPattern(relPath: string, patterns: string[]): boolean {
@@ -96,7 +96,9 @@ async function copyDefaultPackageFiles(
 
   const blocksDir = getBlocksDir(pkg);
   if (blocksDir) {
-    await validateBlocksDirectory(path.join(packageDir, blocksDir));
+    const blocksPath = path.join(pathToPackage, blocksDir);
+    copyDirectory(blocksPath, path.join(packageDir, blocksDir), true);
+    await validateBlocksDirectory(blocksPath);
   }
 
   await resolvePackageJsonWorkspace('package.json', packageDir);
