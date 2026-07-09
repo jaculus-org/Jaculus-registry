@@ -281,13 +281,15 @@ export async function buildAllPackagesInRegistry(
 ) {
   const packagePaths = await collectPackagePaths(pathToRegistry);
 
-  // Collect pkg metadata for each path
-  const packages = await Promise.all(
-    packagePaths.map(async (pkgPath) => ({
-      path: pkgPath,
-      pkg: await loadPackageJson(fs, path.join(pkgPath, 'package.json')),
-    })),
-  );
+  let packages: { path: string; pkg: any }[] = [];
+  for (const pkgPath of packagePaths) {
+    try {
+      const pkg = await loadPackageJson(fs, path.join(pkgPath, 'package.json'));
+      packages.push({ path: pkgPath, pkg });
+    } catch (err) {
+      console.error(red(`Failed to load package.json for ${pkgPath}: `), err);
+    }
+  }
 
   // Filter out already-existing versions (unless overriding)
   const toProcess = overrideExisting

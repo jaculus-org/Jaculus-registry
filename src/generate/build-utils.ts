@@ -111,24 +111,53 @@ async function copyPackageFilesFromManifest(
   await copyMatchedPackageFiles(pathToPackage, packageDir, filesArray);
 }
 
+async function copyPackageDirectory(sourceDir: string, targetDir: string) {
+  if (!fs.existsSync(sourceDir)) {
+    return;
+  }
+
+  const entries = await fsp.readdir(sourceDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.isDirectory() && IGNORED_PACKAGE_DIRS.has(entry.name)) {
+      continue;
+    }
+
+    const sourcePath = path.join(sourceDir, entry.name);
+    const destinationPath = path.join(targetDir, entry.name);
+
+    if (entry.isDirectory()) {
+      await fsp.mkdir(destinationPath, { recursive: true });
+      await copyPackageDirectory(sourcePath, destinationPath);
+      continue;
+    }
+
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
+    await fsp.copyFile(sourcePath, destinationPath);
+  }
+}
+
 export async function copyTemplateHelper(
   pathToPackage: string,
   distRegistry: DistRegistry,
   pkg: PackageJson,
 ) {
-  const pathToOutputRegistryVer = path.join(distRegistry.getOutputPath(), pkg.name, pkg.version);
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'registry-copy-'));
   try {
     // Create package structure in temp directory
     const packageDir = path.join(tempDir, 'package');
     await fsp.mkdir(packageDir, { recursive: true });
 
-    await copyPackageFilesFromManifest(pathToPackage, packageDir, pkg);
-    await copyDefaultPackageFiles(pathToPackage, packageDir, pkg);
+    await copyPackageDirectory(pathToPackage, packageDir);
 
     // Create tar.gz archive
-    const tarGzPath = path.join(pathToOutputRegistryVer, 'package.tar.gz');
+    const pathToOutputRegistryVer = path.join(distRegistry.getOutputPath(), pkg.name, pkg.version);
     await fsp.mkdir(pathToOutputRegistryVer, { recursive: true });
+    const tarGzPath = path.join(pathToOutputRegistryVer, 'package.tar.gz');
 
     await tar.create(
       {
