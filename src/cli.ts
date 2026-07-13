@@ -51,6 +51,10 @@ program
     '--force-rebuild-all',
     'Skip blocks directory validation and rebuild/overwrite packages already in dist',
   )
+  .option(
+    '--packages <list>',
+    'Comma-separated package names to build (e.g. "button,@types/jaculus"); default: all',
+  )
   .argument(
     '[registrySourcePath]',
     'Path to the registry source directory',
@@ -59,7 +63,13 @@ program
   .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath, options) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
-    await rt.generateRegistry(options.force, options.forceRebuildAll);
+    const packages: string[] = options.packages
+      ? options.packages
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean)
+      : [];
+    await rt.generateRegistry(options.force, options.forceRebuildAll, packages);
   });
 
 program

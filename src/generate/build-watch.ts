@@ -249,7 +249,11 @@ function isIgnored(name: string) {
   );
 }
 
-async function collectPackagePaths(pathToRegistry: string): Promise<string[]> {
+async function collectPackagePaths(
+  pathToRegistry: string,
+  packageFilter?: Set<string>,
+): Promise<string[]> {
+  const includeAll = !packageFilter || packageFilter.size === 0;
   const packages = await fsp.readdir(pathToRegistry, { withFileTypes: true });
   const packagePaths: string[] = [];
   for (const dirent of packages) {
@@ -262,13 +266,18 @@ async function collectPackagePaths(pathToRegistry: string): Promise<string[]> {
           continue;
         }
 
+        const packageId = `${dirent.name}/${scopedDirent.name}`;
+        if (!includeAll && !packageFilter!.has(packageId)) continue;
+
         const scopedPackagePath = path.join(packagePath, scopedDirent.name);
         if (await hasPackageJson(scopedPackagePath)) {
           packagePaths.push(scopedPackagePath);
         }
       }
     } else if (await hasPackageJson(packagePath)) {
-      packagePaths.push(packagePath);
+      if (includeAll || packageFilter!.has(dirent.name)) {
+        packagePaths.push(packagePath);
+      }
     }
   }
   return packagePaths;
@@ -279,8 +288,9 @@ export async function buildAllPackagesInRegistry(
   distRegistry: DistRegistry,
   overrideExisting = false,
   skipValidation = false,
+  packageFilter?: Set<string>,
 ) {
-  const packagePaths = await collectPackagePaths(pathToRegistry);
+  const packagePaths = await collectPackagePaths(pathToRegistry, packageFilter);
 
   let packages: { path: string; pkg: any }[] = [];
   for (const pkgPath of packagePaths) {

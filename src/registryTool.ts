@@ -78,7 +78,11 @@ export class RegistryTool {
     await this.git.checkout('HEAD');
   }
 
-  async generateRegistry(forceAll = false, forceRebuildAll = false) {
+  async generateRegistry(forceAll = false, forceRebuildAll = false, packages: string[] = []) {
+    const packageFilter = packages.length > 0 ? new Set(packages) : undefined;
+    if (packageFilter) {
+      console.log(blue(`Restricting build to packages: ${packages.join(', ')}`));
+    }
     await this.moveHeadToLastCommit();
     if (forceAll) {
       this.cache.lastProcessedCommit = '';
@@ -107,6 +111,7 @@ export class RegistryTool {
             this.distRegistry,
             forceRebuildAll,
             forceRebuildAll,
+            packageFilter,
           );
         } catch (err) {
           console.error(
