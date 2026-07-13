@@ -78,7 +78,7 @@ export class RegistryTool {
     await this.git.checkout('HEAD');
   }
 
-  async generateRegistry(forceAll = false) {
+  async generateRegistry(forceAll = false, forceRebuildAll = false) {
     await this.moveHeadToLastCommit();
     if (forceAll) {
       this.cache.lastProcessedCommit = '';
@@ -102,7 +102,12 @@ export class RegistryTool {
         console.log('Files at this commit:', files);
 
         try {
-          await buildAllPackagesInRegistry(this.registrySourcePath, this.distRegistry);
+          await buildAllPackagesInRegistry(
+            this.registrySourcePath,
+            this.distRegistry,
+            forceRebuildAll,
+            forceRebuildAll,
+          );
         } catch (err) {
           console.error(
             red(`Error processing registry at this commit: ${commitHash} Error:\n`),

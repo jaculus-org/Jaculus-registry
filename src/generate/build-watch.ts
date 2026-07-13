@@ -278,6 +278,7 @@ export async function buildAllPackagesInRegistry(
   pathToRegistry: string,
   distRegistry: DistRegistry,
   overrideExisting = false,
+  skipValidation = false,
 ) {
   const packagePaths = await collectPackagePaths(pathToRegistry);
 
@@ -317,7 +318,7 @@ export async function buildAllPackagesInRegistry(
       if (pkg.jaculus?.template) {
         await copyTemplateHelper(pkgPath, distRegistry, pkg);
       } else {
-        await transpileCopyHelper(pkgPath, distRegistry, pkg);
+        await transpileCopyHelper(pkgPath, distRegistry, pkg, skipValidation);
       }
       await distRegistry.addPackageVersion(
         pkg.name,
@@ -352,7 +353,7 @@ export async function buildAllPackagesInRegistry(
     if (pkg.jaculus?.template) continue; // already copied in pass 1
     console.log(blue(`  Building ${pkg.name}@${pkg.version}`));
     try {
-      await fullBuildCopyHelper(pkgPath, distRegistry, pkg);
+      await fullBuildCopyHelper(pkgPath, distRegistry, pkg, skipValidation);
     } catch (err) {
       console.error(red(`  Pass 3 failed for ${pkg.name}: `), err);
       throw err;
