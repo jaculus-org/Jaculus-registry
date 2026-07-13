@@ -88,6 +88,7 @@ async function copyDefaultPackageFiles(
   pathToPackage: string,
   packageDir: string,
   pkg: PackageJson,
+  skipValidation = false,
 ) {
   await copyFile('package.json', pathToPackage, packageDir);
   await copyFile('README.md', pathToPackage, packageDir, true);
@@ -98,7 +99,7 @@ async function copyDefaultPackageFiles(
   if (blocksDir) {
     const blocksPath = path.join(pathToPackage, blocksDir);
     copyDirectory(blocksPath, path.join(packageDir, blocksDir), true);
-    await validateBlocksDirectory(blocksPath);
+    await validateBlocksDirectory(blocksPath, skipValidation);
   }
 
   await resolvePackageJsonWorkspace('package.json', packageDir);
@@ -184,6 +185,7 @@ export async function buildCopyHelper(
   pathToPackage: string,
   distRegistry: DistRegistry,
   pkg: PackageJson,
+  skipValidation = false,
 ) {
   await buildJacPackage(pathToPackage, pkg);
   await copyBuiltPackagesToRegistryDist(
@@ -191,6 +193,7 @@ export async function buildCopyHelper(
     distRegistry.getOutputPath(),
     pkg.name,
     pkg.version,
+    skipValidation,
   );
 }
 
@@ -198,6 +201,7 @@ export async function transpileCopyHelper(
   pathToPackage: string,
   distRegistry: DistRegistry,
   pkg: PackageJson,
+  skipValidation = false,
 ) {
   await transpileJacPackage(pathToPackage, pkg);
   await copyBuiltPackagesToRegistryDist(
@@ -205,6 +209,7 @@ export async function transpileCopyHelper(
     distRegistry.getOutputPath(),
     pkg.name,
     pkg.version,
+    skipValidation,
   );
 }
 
@@ -212,6 +217,7 @@ export async function fullBuildCopyHelper(
   pathToPackage: string,
   distRegistry: DistRegistry,
   pkg: PackageJson,
+  skipValidation = false,
 ) {
   await fullBuildJacPackage(pathToPackage, pkg);
   await copyBuiltPackagesToRegistryDist(
@@ -219,6 +225,7 @@ export async function fullBuildCopyHelper(
     distRegistry.getOutputPath(),
     pkg.name,
     pkg.version,
+    skipValidation,
   );
 }
 
@@ -307,10 +314,16 @@ export async function resolvePackageJsonWorkspace(fileName: string, sourceDir: s
   await writeJSONFile(packageJsonPath, packageJson);
 }
 
-export async function validateBlocksDirectory(blocksDir: string) {
+export async function validateBlocksDirectory(blocksDir: string, skipValidation = false) {
   if (!fs.existsSync(blocksDir)) {
     return;
   }
+
+  if (skipValidation) {
+    console.warn("Skipping validation check for blocks directory.");
+    return;
+  }
+
   const files = await fsp.readdir(blocksDir);
   for (const file of files) {
     if (file.endsWith('.jacly.json')) {
@@ -353,6 +366,7 @@ export async function copyBuiltPackagesToRegistryDist(
   outputRegistryDist: string,
   packageName: string,
   version: string,
+  skipValidation = false,
 ) {
   const pathToOutputRegistryVer = path.join(outputRegistryDist, packageName, version);
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'registry-copy-'));
@@ -364,7 +378,7 @@ export async function copyBuiltPackagesToRegistryDist(
     await fsp.mkdir(packageDir, { recursive: true });
 
     await copyPackageFilesFromManifest(pathToRegistry, packageDir, pkg);
-    await copyDefaultPackageFiles(pathToRegistry, packageDir, pkg);
+    await copyDefaultPackageFiles(pathToRegistry, packageDir, pkg, skipValidation);
 
     // Create tar.gz archive
     const tarGzPath = path.join(pathToOutputRegistryVer, 'package.tar.gz');

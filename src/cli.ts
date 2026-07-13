@@ -47,6 +47,10 @@ program
   .command('generate')
   .description('Run generateRegistry for new commits (respects cache)')
   .option('-f, --force', 'Force regenerate all commits, ignoring cache')
+  .option(
+    '--force-rebuild-all',
+    'Skip blocks directory validation and rebuild/overwrite packages already in dist',
+  )
   .argument(
     '[registrySourcePath]',
     'Path to the registry source directory',
@@ -55,7 +59,7 @@ program
   .argument('[registryDestPath]', 'Path to the registry dist directory', './.jaculus-libs-dist')
   .action(async (registrySourcePath, registryDestPath, options) => {
     const rt = new RegistryTool(registrySourcePath, registryDestPath, cacheFileName);
-    await rt.generateRegistry(options.force);
+    await rt.generateRegistry(options.force, options.forceRebuildAll);
   });
 
 program
